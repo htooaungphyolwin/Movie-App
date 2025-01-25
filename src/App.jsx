@@ -3,6 +3,10 @@ import Search from "./components/Search";
 import Spinner from "./components/Spinner";
 import MovieCard from "./components/MovieCard";
 
+import { useDebounce } from "react-use";
+import { getTrendingMovies, updateSearchCount } from "./appWrite";
+import TrendingMovies from "./components/TrendingMovies";
+
 const API_BASE_URL = "https://api.themoviedb.org/3";
 const API_KEY = import.meta.env.VITE_API_KEY;
 
@@ -16,10 +20,21 @@ const API_OPTIONS = {
 
 const App = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  
   const [movieList, setMovieList] = useState([]);
+  const [trendingMovies, setTrendingMovies] = useState([]);
+  
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
+  useDebounce(
+    () => {
+      setDebouncedSearchTerm(searchTerm);
+    },
+    500,
+    [searchTerm]
+  );
   const fetchMovies = async (query = "") => {
     setIsLoading(true);
     setErrorMessage("");
@@ -44,6 +59,10 @@ const App = () => {
       }
 
       setMovieList(data.results);
+
+      if (query && data.results.length > 0) {
+        await updateSearchCount(query, data.results[0]);
+      }
     } catch (error) {
       console.error("Error fetching movies:", error);
       setErrorMessage("Failed to fetch movies. Please try again.");
@@ -52,9 +71,22 @@ const App = () => {
     }
   };
 
+  const loadTrendingMovies = async () => {
+    try {
+      const movies = await getTrendingMovies();
+      setTrendingMovies(movies);
+    } catch (error) {
+      console.error("Error fetching movies:", error);
+    }
+  };
+
   useEffect(() => {
-    fetchMovies(searchTerm);
-  }, [searchTerm]);
+    fetchMovies(debouncedSearchTerm);
+  }, [debouncedSearchTerm]);
+
+  useEffect(() => {
+    loadTrendingMovies();
+  }, []);
 
   return (
     <main>
@@ -68,6 +100,9 @@ const App = () => {
           </h1>
           <Search searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
         </header>
+        {trendingMovies.length > 0 && (
+          <TrendingMovies movies={trendingMovies} />
+        )}
         <section className="all-movies">
           <h2>All Movies</h2>
           {isLoading ? (
